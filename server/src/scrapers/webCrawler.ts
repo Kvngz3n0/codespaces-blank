@@ -52,6 +52,14 @@ export interface CrawlResult {
   pagesVisited: number;
   pagesCrawled: CrawlPage[];
   totalLinks: number;
+  media?: {
+    images: string[];
+    videos: string[];
+    audio: string[];
+    documents: string[];
+    archives: string[];
+    ebooks: string[];
+  };
   errors: Record<string, string>;
   duration: number;
   timestamp: Date;
@@ -358,11 +366,11 @@ export async function searchWebsite(
   return crawler.search(url, searchTerm, maxDepth, maxPages);
 }
 
-export async function crawlWithPython(url: string, maxDepth: number = 2, maxPages: number = 50): Promise<CrawlResult> {
+export async function crawlWithPython(url: string, maxDepth: number = 2, maxPages: number = 50, ignoreRobots: boolean = false): Promise<CrawlResult> {
   try {
     // Resolve python script relative to process working dir (server project)
     const script = path.resolve(process.cwd(), 'src', 'scrapers', 'python_scraper.py');
-    const args = ['mode=crawl', `url=${url}`, `maxDepth=${maxDepth}`, `maxPages=${maxPages}`];
+    const args = ['mode=crawl', `url=${url}`, `maxDepth=${maxDepth}`, `maxPages=${maxPages}`, `ignoreRobots=${ignoreRobots ? 'true' : 'false'}`];
     // Do not inject dev-only env vars here. Honor the environment provided by the runtime.
     const res = spawnSync('python3', [script, ...args], { encoding: 'utf-8', timeout: 120000, env: process.env });
 
@@ -372,7 +380,7 @@ export async function crawlWithPython(url: string, maxDepth: number = 2, maxPage
     const out = JSON.parse(res.stdout);
     if (out.error) throw new Error(out.error);
 
-    // Map Python structure to CrawlResult minimally
+    // Map Python structure to CrawlResult
     return {
       startUrl: out.start || url,
       pagesVisited: (out.results || []).length,
@@ -386,6 +394,14 @@ export async function crawlWithPython(url: string, maxDepth: number = 2, maxPage
         timestamp: new Date()
       })),
       totalLinks: (out.results || []).reduce((sum: number, p: any) => sum + ((p['links'] || []).length), 0),
+      media: out['media'] ? {
+        images: out['media']['images'] || [],
+        videos: out['media']['videos'] || [],
+        audio: out['media']['audio'] || [],
+        documents: out['media']['documents'] || [],
+        archives: out['media']['archives'] || [],
+        ebooks: out['media']['ebooks'] || []
+      } : undefined,
       errors: {},
       duration: 0,
       timestamp: new Date()

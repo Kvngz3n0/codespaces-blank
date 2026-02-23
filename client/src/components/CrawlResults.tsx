@@ -1,5 +1,6 @@
 import React from 'react';
 import './CrawlResults.css';
+import MediaDownloadPanel from './MediaDownloadPanel';
 
 interface CrawlPage {
   url: string;
@@ -187,6 +188,8 @@ function CrawlResults({ result }: CrawlResultsProps) {
           ))}
         </div>
       </div>
+
+      {result.media && <MediaDownloadPanel media={result.media} title="📥 Extracted Media from Crawl" />}
 
       {Object.keys(result.errors).length > 0 && (
         <div className="crawl-errors">

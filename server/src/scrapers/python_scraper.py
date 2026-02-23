@@ -24,6 +24,46 @@ def fetch_url(url, headers=None, timeout=12):
     return r
 
 
+# Media extensions (from Duke2.py)
+MEDIA_EXTENSIONS = {
+    'images': ['.jpg', '.jpeg', '.png', '.gif', '.webp', '.svg'],
+    'videos': ['.mp4', '.webm', '.avi', '.mov'],
+    'audio': ['.mp3', '.ogg', '.wav', '.flac', '.m4a'],
+    'documents': ['.pdf', '.epub', '.docx', '.txt', '.doc', '.xls', '.xlsx'],
+    'archives': ['.zip', '.rar', '.7z', '.tar', '.gz'],
+    'ebooks': ['.mobi', '.azw3', '.azw']
+}
+
+def is_media_file(url, extensions):
+    """Check if URL ends with media extension"""
+    return any(url.lower().endswith(ext) for ext in extensions)
+
+def extract_media_links(soup, base_url, media_type):
+    """Extract media links by type (images, videos, audio, documents, archives, ebooks)"""
+    links = set()
+    if media_type == 'images':
+        tags = soup.find_all(['img', 'source', 'meta'])
+        for tag in tags:
+            for attr in ['src', 'data-src', 'content']:
+                src = tag.get(attr)
+                if src:
+                    full_url = urljoin(base_url, src)
+                    links.add(full_url)
+    elif media_type in ['videos', 'audio']:
+        tags = soup.find_all([media_type, 'source'])
+        for tag in tags:
+            src = tag.get('src')
+            if src:
+                full_url = urljoin(base_url, src)
+                links.add(full_url)
+    else:  # documents, archives, ebooks
+        for tag in soup.find_all('a', href=True):
+            href = tag.get('href')
+            if is_media_file(href, MEDIA_EXTENSIONS[media_type]):
+                full_url = urljoin(base_url, href)
+                links.add(full_url)
+    return list(links)
+
 def parse_page(url, html):
     soup = BeautifulSoup(html, 'html.parser')
     title = soup.title.string.strip() if soup.title and soup.title.string else ''
@@ -37,8 +77,12 @@ def parse_page(url, html):
         href = a['href']
         links.append({'text': a.get_text(strip=True)[:100], 'href': href})
 
-    images = [img.get('src') or '' for img in soup.find_all('img')][:30]
     paragraphs = [p.get_text(strip=True) for p in soup.find_all('p') if p.get_text(strip=True)][:10]
+
+    # Extract media by type
+    media_by_type = {}
+    for mtype in MEDIA_EXTENSIONS.keys():
+        media_by_type[mtype] = extract_media_links(soup, url, mtype)
 
     return {
         'url': url,
@@ -46,8 +90,8 @@ def parse_page(url, html):
         'description': description,
         'headings': headings,
         'links': links,
-        'images': images,
         'paragraphs': paragraphs,
+        'media': media_by_type,
         'timestamp': time.strftime('%Y-%m-%dT%H:%M:%SZ', time.gmtime())
     }
 
@@ -67,24 +111,26 @@ def mode_crawl(args):
     start = args.get('url')
     max_depth = int(args.get('maxDepth', 2))
     max_pages = int(args.get('maxPages', 50))
+    ignore_robots = str(args.get('ignoreRobots', 'false')).lower() in ('1', 'true', 'yes')
     if not start:
         return {'error': 'url required'}
 
     parsed = urlparse(start)
     base = f"{parsed.scheme}://{parsed.netloc}"
 
-    # check robots
-    rp = urllib.robotparser.RobotFileParser()
+    # check robots unless ignoreRobots is set
+    rp = urllib.robotparser.RobotFileParser() if not ignore_robots else None
     try:
-        rp.set_url(urljoin(base, '/robots.txt'))
-        rp.read()
+        if rp:
+            rp.set_url(urljoin(base, '/robots.txt'))
+            rp.read()
     except Exception:
-        # If robots can't be read, proceed but don't aggressively crawl
         pass
 
     visited = set()
     queue = [(start, 0)]
     results = []
+    all_media = {mtype: set() for mtype in MEDIA_EXTENSIONS.keys()}
 
     headers = {'User-Agent': 'python-requests/2.x'}
 
@@ -92,31 +138,31 @@ def mode_crawl(args):
         url, depth = queue.pop(0)
         if url in visited or depth > max_depth:
             continue
-        # Respect robots
-        try:
-            allow = True
-            if hasattr(rp, 'can_fetch'):
-                allow = rp.can_fetch(headers['User-Agent'], url)
-            if not allow:
-                visited.add(url)
-                continue
-        except Exception:
-            pass
+        # Respect robots unless ignoreRobots is set
+        if rp:
+            try:
+                allow = rp.can_fetch(headers['User-Agent'], url) if hasattr(rp, 'can_fetch') else True
+                if not allow:
+                    visited.add(url)
+                    continue
+            except Exception:
+                pass
 
         try:
             r = fetch_url(url, headers=headers)
             page = parse_page(url, r.text)
+            # Collect media from this page
+            for mtype, links in page.get('media', {}).items():
+                all_media[mtype].update(links)
             results.append(page)
             visited.add(url)
             soup = BeautifulSoup(r.text, 'html.parser')
             for a in soup.find_all('a', href=True):
                 href = a['href']
-                # normalize
                 if href.startswith('#'):
                     continue
                 next_url = urljoin(url, href)
                 parsed_next = urlparse(next_url)
-                # same host only
                 if parsed_next.netloc != parsed.netloc:
                     continue
                 if next_url not in visited:
@@ -131,6 +177,7 @@ def mode_crawl(args):
         'start': start,
         'pagesCrawled': len(results),
         'results': results,
+        'media': {mtype: list(links)[:100] for mtype, links in all_media.items()},
         'timestamp': time.strftime('%Y-%m-%dT%H:%M:%SZ', time.gmtime())
     }
 

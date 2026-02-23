@@ -233,7 +233,7 @@ app.post('/api/scrape', async (req: Request, res: Response) => {
 // Web Crawling endpoint
 app.post('/api/crawl', async (req: Request, res: Response) => {
   try {
-    const { url, maxDepth = 2, maxPages = 50, engine, fileType, engineOrder } = req.body;
+    const { url, maxDepth = 2, maxPages = 50, engine, fileType, engineOrder, ignoreRobots = false } = req.body;
 
     if (!url) {
       return res.status(400).json({ error: 'URL is required' });
@@ -260,7 +260,7 @@ app.post('/api/crawl', async (req: Request, res: Response) => {
     })();
 
     const handlers: Record<string, () => Promise<any>> = {
-      python: async () => await crawlWithPython(url, depth, pages),
+      python: async () => await crawlWithPython(url, depth, pages, ignoreRobots),
       html: async () => await crawlWebsite(url, depth, pages)
     };
 

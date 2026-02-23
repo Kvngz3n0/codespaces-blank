@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import './ResultsDisplay.css';
+import MediaDownloadPanel from './MediaDownloadPanel';
 
 interface ResultsDisplayProps {
   results: any;
@@ -162,6 +163,8 @@ function BasicResults({
           )}
         </div>
       )}
+
+      {data.media && <MediaDownloadPanel media={data.media} title="📥 Extracted Media" />}
     </div>
   );
 }

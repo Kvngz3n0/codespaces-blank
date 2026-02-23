@@ -15,6 +15,7 @@ function CrawlerPanel({ onCrawlStart, onCrawlComplete, engine = 'html', engineOr
   const [maxDepth, setMaxDepth] = useState(2);
   const [maxPages, setMaxPages] = useState(50);
   const [fileType, setFileType] = useState<string | undefined>(undefined);
+  const [ignoreRobots, setIgnoreRobots] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [isSearchMode, setIsSearchMode] = useState(false);
@@ -37,7 +38,8 @@ function CrawlerPanel({ onCrawlStart, onCrawlComplete, engine = 'html', engineOr
         maxPages,
         engine,
         fileType,
-        engineOrder
+        engineOrder,
+        ignoreRobots
       });
       onCrawlComplete(response.data);
     } catch (err) {
@@ -167,6 +169,18 @@ function CrawlerPanel({ onCrawlStart, onCrawlComplete, engine = 'html', engineOr
               <option value="documents">Documents</option>
             </select>
             <small>Restrict crawl results to a file type</small>
+          </div>
+          <div className="control-group">
+            <label>
+              <input
+                type="checkbox"
+                checked={ignoreRobots}
+                onChange={(e) => setIgnoreRobots(e.target.checked)}
+                disabled={loading}
+              />
+              Ignore robots.txt
+            </label>
+            <small>When enabled, crawls will bypass robots.txt restrictions</small>
           </div>
         </div>
 

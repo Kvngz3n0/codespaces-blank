@@ -10,6 +10,15 @@ export interface ScrapedElement {
   attributes: Record<string, string>;
 }
 
+export interface MediaExtraction {
+  images: string[];
+  videos: string[];
+  audio: string[];
+  documents: string[];
+  archives: string[];
+  ebooks: string[];
+}
+
 export interface BasicScrapResult {
   url: string;
   title: string;
@@ -19,6 +28,7 @@ export interface BasicScrapResult {
   images: string[];
   paragraphs: string[];
   elements: ScrapedElement[];
+  media?: MediaExtraction;
   timestamp: Date;
 }
 
@@ -136,6 +146,14 @@ export async function scrapeWithPython(url: string): Promise<BasicScrapResult> {
       images: out['images'] || [],
       paragraphs: out['paragraphs'] || [],
       elements: [],
+      media: out['media'] ? {
+        images: out['media']['images'] || [],
+        videos: out['media']['videos'] || [],
+        audio: out['media']['audio'] || [],
+        documents: out['media']['documents'] || [],
+        archives: out['media']['archives'] || [],
+        ebooks: out['media']['ebooks'] || []
+      } : undefined,
       timestamp: new Date()
     } as BasicScrapResult;
   } catch (err) {
@@ -197,6 +215,24 @@ function parseContent(url: string, data: string): BasicScrapResult {
       images,
       paragraphs: paragraphs as string[],
       elements,
+      media: {
+        images: images.slice(0, 30),
+        videos: Array.from(document.querySelectorAll('video source[src]'))
+          .map((el: any) => el.getAttribute('src'))
+          .filter(Boolean),
+        audio: Array.from(document.querySelectorAll('audio source[src]'))
+          .map((el: any) => el.getAttribute('src'))
+          .filter(Boolean),
+        documents: Array.from(document.querySelectorAll('a[href]'))
+          .map((el: any) => el.getAttribute('href'))
+          .filter((h: string) => /\\.(pdf|doc|docx|xls|xlsx|ppt|pptx|txt|csv)$/i.test(h)),
+        archives: Array.from(document.querySelectorAll('a[href]'))
+          .map((el: any) => el.getAttribute('href'))
+          .filter((h: string) => /\\.(zip|rar|7z|gz|tar|bz2)$/i.test(h)),
+        ebooks: Array.from(document.querySelectorAll('a[href]'))
+          .map((el: any) => el.getAttribute('href'))
+          .filter((h: string) => /\\.(epub|mobi|azw|azw3)$/i.test(h))
+      },
       timestamp: new Date()
     };
   } catch (error) {
