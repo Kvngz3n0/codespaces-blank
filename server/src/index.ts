@@ -1,0 +1,243 @@
+import express, { Request, Response, NextFunction } from 'express';
+import cors from 'cors';
+import compression from 'compression';
+import helmet from 'helmet';
+import { scrapeBasic } from './scrapers/basicScraper.js';
+import { scrapeWithJS, closeBrowser } from './scrapers/jsScraper.js';
+import { crawlWebsite, searchWebsite } from './scrapers/webCrawler.js';
+import { lookupUsername, getAvailablePlatforms } from './scrapers/socialMediaLookup.js';
+import { performWebSearch } from './scrapers/webSearch.js';
+import dotenv from 'dotenv';
+
+dotenv.config();
+
+const app = express();
+const PORT = process.env.PORT || 5000;
+const CLIENT_URL = process.env.CLIENT_URL || 'http://localhost:3000';
+
+// Middleware
+app.use(helmet());
+app.use(compression());
+app.use(cors({
+  origin: CLIENT_URL,
+  credentials: true
+}));
+app.use(express.json({ limit: '10mb' }));
+
+// Error handling middleware
+app.use((err: Error, req: Request, res: Response, next: NextFunction) => {
+  console.error('Error:', err);
+  res.status(500).json({ error: err.message || 'Internal server error' });
+});
+
+// Health check
+app.get('/api/health', (req: Request, res: Response) => {
+  res.json({ status: 'ok', timestamp: new Date() });
+});
+
+// Basic scraping endpoint
+app.post('/api/scrape/basic', async (req: Request, res: Response) => {
+  try {
+    const { url } = req.body;
+
+    if (!url) {
+      return res.status(400).json({ error: 'URL is required' });
+    }
+
+    // Validate URL
+    try {
+      new URL(url);
+    } catch {
+      return res.status(400).json({ error: 'Invalid URL' });
+    }
+
+    const result = await scrapeBasic(url);
+    res.json(result);
+  } catch (error) {
+    console.error('Scrape error:', error);
+    res.status(500).json({
+      error: error instanceof Error ? error.message : 'Scraping failed'
+    });
+  }
+});
+
+// JavaScript-rendered scraping endpoint
+app.post('/api/scrape/js', async (req: Request, res: Response) => {
+  try {
+    const { url, screenshot } = req.body;
+
+    if (!url) {
+      return res.status(400).json({ error: 'URL is required' });
+    }
+
+    try {
+      new URL(url);
+    } catch {
+      return res.status(400).json({ error: 'Invalid URL' });
+    }
+
+    const result = await scrapeWithJS(url, screenshot === true);
+    res.json(result);
+  } catch (error) {
+    console.error('JS Scrape error:', error);
+    res.status(500).json({
+      error: error instanceof Error ? error.message : 'JS scraping failed'
+    });
+  }
+});
+
+// Combined scraping endpoint (tries basic first, then JS)
+app.post('/api/scrape', async (req: Request, res: Response) => {
+  try {
+    const { url, includeJS = false, screenshot = false } = req.body;
+
+    if (!url) {
+      return res.status(400).json({ error: 'URL is required' });
+    }
+
+    try {
+      new URL(url);
+    } catch {
+      return res.status(400).json({ error: 'Invalid URL' });
+    }
+
+    const results: Record<string, any> = {};
+
+    try {
+      results.basic = await scrapeBasic(url);
+    } catch (error) {
+      results.basicError = error instanceof Error ? error.message : 'Failed to scrape basic content';
+    }
+
+    if (includeJS) {
+      try {
+        results.js = await scrapeWithJS(url, screenshot);
+      } catch (error) {
+        results.jsError = error instanceof Error ? error.message : 'Failed to scrape JS content';
+      }
+    }
+
+    res.json(results);
+  } catch (error) {
+    console.error('Combined scrape error:', error);
+    res.status(500).json({
+      error: error instanceof Error ? error.message : 'Scraping failed'
+    });
+  }
+});
+
+// Web Crawling endpoint
+app.post('/api/crawl', async (req: Request, res: Response) => {
+  try {
+    const { url, maxDepth = 2, maxPages = 50 } = req.body;
+
+    if (!url) {
+      return res.status(400).json({ error: 'URL is required' });
+    }
+
+    try {
+      new URL(url);
+    } catch {
+      return res.status(400).json({ error: 'Invalid URL' });
+    }
+
+    // Limit crawl parameters
+    const depth = Math.min(Math.max(parseInt(maxDepth) || 2, 1), 5);
+    const pages = Math.min(Math.max(parseInt(maxPages) || 50, 5), 200);
+
+    const result = await crawlWebsite(url, depth, pages);
+    res.json(result);
+  } catch (error) {
+    console.error('Crawl error:', error);
+    res.status(500).json({
+      error: error instanceof Error ? error.message : 'Crawling failed'
+    });
+  }
+});
+
+// Website Search endpoint (Web Search - like Google/DuckDuckGo)
+app.post('/api/search', async (req: Request, res: Response) => {
+  try {
+    const { query, language = 'en', maxResults = 10 } = req.body;
+
+    if (!query || typeof query !== 'string') {
+      return res.status(400).json({ error: 'Search query is required' });
+    }
+
+    if (query.trim().length === 0) {
+      return res.status(400).json({ error: 'Search query cannot be empty' });
+    }
+
+    // Limit maxResults between 1-50
+    const limit = Math.min(Math.max(parseInt(maxResults) || 10, 1), 50);
+
+    const result = await performWebSearch(query.trim(), language, limit);
+    res.json(result);
+  } catch (error) {
+    console.error('Search error:', error);
+    res.status(500).json({
+      error: error instanceof Error ? error.message : 'Search failed'
+    });
+  }
+});
+
+// Social Media Lookup endpoint
+app.post('/api/social-lookup', async (req: Request, res: Response) => {
+  try {
+    const { username, platforms } = req.body;
+
+    if (!username || typeof username !== 'string') {
+      return res.status(400).json({ error: 'Username is required' });
+    }
+
+    if (username.length > 100) {
+      return res.status(400).json({ error: 'Username is too long (max 100 characters)' });
+    }
+
+    const result = await lookupUsername(username, platforms);
+    res.json(result);
+  } catch (error) {
+    console.error('Social lookup error:', error);
+    res.status(500).json({
+      error: error instanceof Error ? error.message : 'Social lookup failed'
+    });
+  }
+});
+
+// Get available platforms
+app.get('/api/social-platforms', (req: Request, res: Response) => {
+  try {
+    const platforms = getAvailablePlatforms();
+    res.json({ platforms });
+  } catch (error) {
+    console.error('Get platforms error:', error);
+    res.status(500).json({
+      error: error instanceof Error ? error.message : 'Failed to get platforms'
+    });
+  }
+});
+
+// Start server
+const server = app.listen(PORT, () => {
+  console.log(`🚀 Server running on http://localhost:${PORT}`);
+  console.log(`📝 CORS enabled for: ${CLIENT_URL}`);
+});
+
+// Graceful shutdown
+process.on('SIGTERM', async () => {
+  console.log('SIGTERM received, shutting down gracefully...');
+  await closeBrowser();
+  server.close(() => {
+    console.log('Server closed');
+    process.exit(0);
+  });
+});
+
+process.on('SIGINT', async () => {
+  console.log('SIGINT received, shutting down gracefully...');
+  await closeBrowser();
+  server.close(() => {
+    console.log('Server closed');
+    process.exit(0);
+  });
+});
