@@ -110,7 +110,8 @@ export async function scrapeWithPython(url: string): Promise<BasicScrapResult> {
     // Resolve python script relative to process working dir (server project)
     const script = path.resolve(process.cwd(), 'src', 'scrapers', 'python_scraper.py');
     const args = ['mode=scrape', `url=${url}`];
-    const res = spawnSync('python3', [script, ...args], { encoding: 'utf-8', timeout: 30000 });
+    const env = process.env.NODE_ENV === 'production' ? process.env : { ...process.env, PYTHON_SCRAPER_INSECURE: '1' };
+    const res = spawnSync('python3', [script, ...args], { encoding: 'utf-8', timeout: 30000, env });
 
     if (res.error) {
       throw res.error;
