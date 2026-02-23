@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+import os
 import sys
 import json
 import time
@@ -8,14 +9,17 @@ from bs4 import BeautifulSoup
 import urllib.robotparser
 import urllib3
 
-# For testing in contained environments without up-to-date CA bundles,
-# allow insecure requests and suppress warnings. In production, remove this.
-urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
+# Control SSL verification via environment variable.
+# By default verification is enabled (production-safe). To disable
+# verification for local/dev containers set PYTHON_SCRAPER_INSECURE=1 or true.
+INSECURE = str(os.getenv('PYTHON_SCRAPER_INSECURE', 'false')).lower() in ('1', 'true', 'yes')
+if INSECURE:
+    urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
 
 def fetch_url(url, headers=None, timeout=12):
     headers = headers or {'User-Agent': 'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36'}
-    r = requests.get(url, headers=headers, timeout=timeout, verify=False)
+    r = requests.get(url, headers=headers, timeout=timeout, verify=not INSECURE)
     r.raise_for_status()
     return r
 
