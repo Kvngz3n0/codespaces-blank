@@ -1,0 +1,53 @@
+name: CI
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  build-and-test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Setup Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.11'
+
+      - name: Install server Python deps
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r server/requirements.txt
+
+      - name: Install server deps
+        run: |
+          cd server
+          npm ci
+
+      - name: Build server (TypeScript)
+        run: npm --prefix server run build
+
+      - name: Install client deps and build
+        run: |
+          cd client
+          npm ci
+          npm run build
+
+      - name: Start server in background
+        run: |
+          npm --prefix server run dev &
+          sleep 3
+
+      - name: Smoke test endpoints
+        run: |
+          curl -sS http://localhost:5000/api/health
+          curl -sS -X POST http://localhost:5000/api/scrape -H 'Content-Type: application/json' -d '{"url":"https://example.com","engine":"python","includeJS":false,"fileType":"default"}' | jq -r '.basic.url'
+          curl -sS -X POST http://localhost:5000/api/crawl -H 'Content-Type: application/json' -d '{"url":"https://example.com","engine":"python","maxDepth":1,"maxPages":2}' | jq -r '.startUrl'

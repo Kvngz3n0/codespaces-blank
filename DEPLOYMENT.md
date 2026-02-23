@@ -447,3 +447,32 @@ pm2 startup
 4. **Mobile**: Use APK for native mobile experience
 
 Choose deployment method based on your requirements!
+
+---
+
+## ⚙️ Python Scraper: Production & Developer Notes
+
+- The Python scraper (`server/src/scrapers/python_scraper.py`) enables an alternative scraping engine. It validates TLS/SSL certificates by default for production safety.
+- If you're developing inside a container or environment without a system CA bundle, you may opt-in to disable SSL verification by setting the environment variable `PYTHON_SCRAPER_INSECURE=1` when running the server locally. Example:
+
+```bash
+PYTHON_SCRAPER_INSECURE=1 npm --prefix server run dev
+```
+
+- Do NOT set `PYTHON_SCRAPER_INSECURE` in production. Instead, ensure the host has a valid CA bundle (install `ca-certificates` on Debian/Ubuntu) so SSL verification succeeds.
+
+- The Node wrappers (`server/src/scrapers/basicScraper.ts` and `server/src/scrapers/webCrawler.ts`) no longer inject a dev-only env var automatically; the runtime environment must opt-in.
+
+## 🛠 CI (GitHub Actions)
+
+- A workflow is included at `.github/workflows/ci.yml` that builds the server and client and runs basic smoke tests on push/PR to `main`.
+
+## 🧾 Puppeteer / JS Engine
+
+- To use the JS engine (`engine: 'js'`) in headless mode, install system dependencies on the host. Example for Ubuntu:
+
+```bash
+sudo apt-get update && sudo apt-get install -y libnss3 libx11-xcb1 libxcomposite1 libxrandr2 libgbm1 libxss1 ca-certificates fonts-liberation xdg-utils
+```
+
+---

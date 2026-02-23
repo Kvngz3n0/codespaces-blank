@@ -363,8 +363,8 @@ export async function crawlWithPython(url: string, maxDepth: number = 2, maxPage
     // Resolve python script relative to process working dir (server project)
     const script = path.resolve(process.cwd(), 'src', 'scrapers', 'python_scraper.py');
     const args = ['mode=crawl', `url=${url}`, `maxDepth=${maxDepth}`, `maxPages=${maxPages}`];
-    const env = process.env.NODE_ENV === 'production' ? process.env : { ...process.env, PYTHON_SCRAPER_INSECURE: '1' };
-    const res = spawnSync('python3', [script, ...args], { encoding: 'utf-8', timeout: 120000, env });
+    // Do not inject dev-only env vars here. Honor the environment provided by the runtime.
+    const res = spawnSync('python3', [script, ...args], { encoding: 'utf-8', timeout: 120000, env: process.env });
 
     if (res.error) throw res.error;
     if (!res.stdout) throw new Error(res.stderr || 'No output from python crawler');
