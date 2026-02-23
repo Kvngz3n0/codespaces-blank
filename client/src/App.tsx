@@ -33,6 +33,7 @@ function App() {
   const [includeJS, setIncludeJS] = useState(false);
   const [screenshot, setScreenshot] = useState(false);
   const [engine, setEngine] = useState<string>('html');
+  const [engineOrder, setEngineOrder] = useState<string>('auto');
   const [fileType, setFileType] = useState<string>('default');
   const [activeResultsTab, setActiveResultsTab] = useState<'basic' | 'js'>('basic');
   
@@ -64,7 +65,8 @@ function App() {
         includeJS,
         screenshot: includeJS ? screenshot : false,
         engine,
-        fileType
+        fileType,
+        engineOrder
       });
       setResults(response.data);
     } catch (err) {
@@ -89,7 +91,8 @@ function App() {
         includeJS,
         screenshot: false,
         engine,
-        fileType
+        fileType,
+        engineOrder
       });
       setResults(response.data);
     } catch (err) {
@@ -172,6 +175,8 @@ function App() {
                 onScreenshotChange={setScreenshot}
                 engine={engine}
                 onEngineChange={setEngine}
+                engineOrder={engineOrder}
+                onEngineOrderChange={setEngineOrder}
                 fileType={fileType}
                 onFileTypeChange={setFileType}
               />
@@ -240,6 +245,7 @@ function App() {
               }}
               engine={engine}
               fileType={fileType}
+              engineOrder={engineOrder}
             />
 
             {crawlLoading && (

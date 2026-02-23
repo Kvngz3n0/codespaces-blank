@@ -7,9 +7,10 @@ interface CrawlerPanelProps {
   onCrawlComplete: (result: any) => void;
   engine?: string;
   fileType?: string;
+  engineOrder?: string;
 }
 
-function CrawlerPanel({ onCrawlStart, onCrawlComplete, engine = 'html' }: CrawlerPanelProps) {
+function CrawlerPanel({ onCrawlStart, onCrawlComplete, engine = 'html', engineOrder }: CrawlerPanelProps) {
   const [crawlUrl, setCrawlUrl] = useState('');
   const [maxDepth, setMaxDepth] = useState(2);
   const [maxPages, setMaxPages] = useState(50);
@@ -35,7 +36,8 @@ function CrawlerPanel({ onCrawlStart, onCrawlComplete, engine = 'html' }: Crawle
         maxDepth,
         maxPages,
         engine,
-        fileType
+        fileType,
+        engineOrder
       });
       onCrawlComplete(response.data);
     } catch (err) {

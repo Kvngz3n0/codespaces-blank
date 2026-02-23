@@ -35,10 +35,37 @@ app.get('/api/health', (req: Request, res: Response) => {
   res.json({ status: 'ok', timestamp: new Date() });
 });
 
+// Helper: try multiple engines in order and return the first successful result
+interface EngineAttempt {
+  engine: string;
+  error?: string;
+  success: boolean;
+}
+
+async function tryEngines<T>(engines: string[], handlers: Record<string, () => Promise<T>>): Promise<{engine: string; result: T; attempts: EngineAttempt[]}> {
+  let lastErr: any = null;
+  const attempts: EngineAttempt[] = [];
+  for (const e of engines) {
+    const handler = handlers[e];
+    if (!handler) continue;
+    try {
+      const result = await handler();
+      attempts.push({ engine: e, success: true });
+      return { engine: e, result, attempts };
+    } catch (err) {
+      lastErr = err;
+      const errMsg = err instanceof Error ? err.message : String(err);
+      attempts.push({ engine: e, error: errMsg, success: false });
+      console.warn(`Engine ${e} failed:`, errMsg);
+    }
+  }
+  throw lastErr || new Error('No engine handlers available');
+}
+
 // Basic scraping endpoint
 app.post('/api/scrape/basic', async (req: Request, res: Response) => {
   try {
-    const { url, engine, fileType } = req.body;
+    const { url, engine, fileType, engineOrder } = req.body;
 
     if (!url) {
       return res.status(400).json({ error: 'URL is required' });
@@ -51,7 +78,23 @@ app.post('/api/scrape/basic', async (req: Request, res: Response) => {
       return res.status(400).json({ error: 'Invalid URL' });
     }
 
-    const result = engine === 'python' ? await scrapeWithPython(url) : await scrapeBasic(url);
+    // Determine engine order for fallback
+    const candidateEngines = engineOrder ? engineOrder.split(',').map((e: string) => e.trim()) : (() => {
+      const e = (engine || 'auto').toString();
+      if (e === 'auto') return ['python', 'html'];
+      if (e === 'python') return ['python', 'html'];
+      if (e === 'js') return ['js', 'html'];
+      return ['html'];
+    })();
+
+    const handlers: Record<string, () => Promise<any>> = {
+      python: async () => await scrapeWithPython(url),
+      html: async () => await scrapeBasic(url),
+      js: async () => await scrapeWithJS(url, false)
+    };
+
+    const { result: resultObj, engine: usedEngine, attempts } = await tryEngines(candidateEngines, handlers).catch((err) => { throw err; });
+    const result = { ...resultObj, _engineUsed: usedEngine, _engineAttempts: attempts };
 
     // Apply fileType filtering if requested
     if (fileType && fileType !== 'default') {
@@ -103,7 +146,7 @@ app.post('/api/scrape/js', async (req: Request, res: Response) => {
 // Combined scraping endpoint (tries basic first, then JS)
 app.post('/api/scrape', async (req: Request, res: Response) => {
   try {
-    const { url, includeJS = false, screenshot = false, engine, fileType } = req.body;
+    const { url, includeJS = false, screenshot = false, engine, fileType, engineOrder } = req.body;
 
     if (!url) {
       return res.status(400).json({ error: 'URL is required' });
@@ -118,12 +161,30 @@ app.post('/api/scrape', async (req: Request, res: Response) => {
     const results: Record<string, any> = {};
 
     try {
-      results.basic = engine === 'python' ? await scrapeWithPython(url) : await scrapeBasic(url);
+      // Build candidate engines for basic scrape fallback
+      const candidateEngines = (() => {
+        const e = (engine || 'auto').toString();
+        if (e === 'auto') return includeJS ? ['python', 'html', 'js'] : ['python', 'html'];
+        if (e === 'python') return includeJS ? ['python', 'html', 'js'] : ['python', 'html'];
+        if (e === 'js') return ['js', 'html'];
+        return ['html'];
+      })();
+
+      const handlers: Record<string, () => Promise<any>> = {
+        python: async () => await scrapeWithPython(url),
+        html: async () => await scrapeBasic(url),
+        js: async () => await scrapeWithJS(url, screenshot)
+      };
+
+      // Allow engineOrder override
+      const engines = engineOrder ? engineOrder.split(',').map((e: string) => e.trim()) : candidateEngines;
+      const { engine: used, result: resObj, attempts } = await tryEngines(engines, handlers);
+      results.basic = { ...resObj, _engineUsed: used, _engineAttempts: attempts };
     } catch (error) {
       results.basicError = error instanceof Error ? error.message : 'Failed to scrape basic content';
     }
 
-    if (includeJS) {
+    if (includeJS && !results.js) {
       try {
         results.js = await scrapeWithJS(url, screenshot);
       } catch (error) {
@@ -155,7 +216,7 @@ app.post('/api/scrape', async (req: Request, res: Response) => {
 // Web Crawling endpoint
 app.post('/api/crawl', async (req: Request, res: Response) => {
   try {
-    const { url, maxDepth = 2, maxPages = 50, engine, fileType } = req.body;
+    const { url, maxDepth = 2, maxPages = 50, engine, fileType, engineOrder } = req.body;
 
     if (!url) {
       return res.status(400).json({ error: 'URL is required' });
@@ -171,7 +232,22 @@ app.post('/api/crawl', async (req: Request, res: Response) => {
     const depth = Math.min(Math.max(parseInt(maxDepth) || 2, 1), 5);
     const pages = Math.min(Math.max(parseInt(maxPages) || 50, 5), 200);
 
-    const result = engine === 'python' ? await crawlWithPython(url, depth, pages) : await crawlWebsite(url, depth, pages);
+    // Crawl using requested engine with fallback: python -> html
+    const candidateEngines = engineOrder ? engineOrder.split(',').map((e: string) => e.trim()) : (() => {
+      const e = (engine || 'auto').toString();
+      if (e === 'python') return ['python', 'html'];
+      if (e === 'html' || e === 'default') return ['html'];
+      return ['python', 'html'];
+    })();
+
+    const handlers: Record<string, () => Promise<any>> = {
+      python: async () => await crawlWithPython(url, depth, pages),
+      html: async () => await crawlWebsite(url, depth, pages)
+    };
+
+    const { result, engine: usedEngine, attempts } = await tryEngines(candidateEngines, handlers);
+    result._engineUsed = usedEngine;
+    result._engineAttempts = attempts;
 
     // Apply fileType filtering for crawler results if requested
     if (fileType && fileType !== 'default') {

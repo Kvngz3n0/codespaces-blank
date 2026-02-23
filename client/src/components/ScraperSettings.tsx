@@ -10,6 +10,8 @@ interface ScraperSettingsProps {
   onEngineChange?: (value: string) => void;
   fileType?: string;
   onFileTypeChange?: (value: string) => void;
+  engineOrder?: string;
+  onEngineOrderChange?: (value: string) => void;
 }
 
 function ScraperSettings({
@@ -18,8 +20,11 @@ function ScraperSettings({
   onIncludeJSChange,
   onScreenshotChange,
   engine,
-  onEngineChange
-  , fileType, onFileTypeChange
+  onEngineChange,
+  fileType,
+  onFileTypeChange,
+  engineOrder,
+  onEngineOrderChange
 }: ScraperSettingsProps) {
   return (
     <div className="settings">
@@ -29,6 +34,17 @@ function ScraperSettings({
           <option value="html">HTML (fast)</option>
           <option value="js">JS (Puppeteer)</option>
           <option value="python">Python (requests/BeautifulSoup)</option>
+        </select>
+      </label>
+
+      <label className="select-label">
+        <span>Fallback Engine Order:</span>
+        <select value={engineOrder || 'default'} onChange={(e) => onEngineOrderChange && onEngineOrderChange(e.target.value)}>
+          <option value="default">Auto (Python → HTML)</option>
+          <option value="python,html">Python first, then HTML</option>
+          <option value="html,python">HTML first, then Python</option>
+          <option value="python,html,js">Python → HTML → JS</option>
+          <option value="html,python,js">HTML → Python → JS</option>
         </select>
       </label>
 
