@@ -42,22 +42,17 @@ interface EngineAttempt {
   success: boolean;
 }
 
-async function tryEngines<T>(engines: string[], handlers: Record<string, () => Promise<T>>, fallback: string[] = ['html']): Promise<{engine: string; result: T; attempts: EngineAttempt[]}> {
+async function tryEngines<T>(engines: string[], handlers: Record<string, () => Promise<T>>): Promise<{engine: string; result: T; attempts: EngineAttempt[]}> {
   let lastErr: any = null;
   const attempts: EngineAttempt[] = [];
+  const availableEngines = Object.keys(handlers);
   
-  // Validate and filter to only engines that have handlers
-  const validEngines = engines.filter(e => handlers[e]);
-  const candidatesToTry = validEngines.length > 0 ? validEngines : fallback.filter(e => handlers[e]);
-  
-  if (candidatesToTry.length === 0) {
-    const availableEngines = Object.keys(handlers);
-    throw new Error(`No valid engine handlers. Requested: ${engines.join(', ')}. Available: ${availableEngines.join(', ')}`);
-  }
-  
-  for (const e of candidatesToTry) {
+  for (const e of engines) {
     const handler = handlers[e];
-    if (!handler) continue;
+    if (!handler) {
+      attempts.push({ engine: e, error: `Engine '${e}' not available. Available: ${availableEngines.join(', ')}`, success: false });
+      continue;
+    }
     try {
       const result = await handler();
       attempts.push({ engine: e, success: true });
@@ -69,7 +64,15 @@ async function tryEngines<T>(engines: string[], handlers: Record<string, () => P
       console.warn(`Engine ${e} failed:`, errMsg);
     }
   }
-  throw lastErr || new Error(`All engines failed: ${candidatesToTry.join(', ')}`);
+  
+  // Generate meaningful error message
+  const failedEngines = attempts.map(a => `${a.engine}${a.error ? ` (${a.error})` : ''}`).join('; ');
+  const allFailed = attempts.every(a => !a.success);
+  const errMsg = allFailed && attempts.length > 0 
+    ? `All engines failed: ${failedEngines}`
+    : `No valid engines provided. Requested: ${engines.join(', ')}. Available: ${availableEngines.join(', ')}`;
+  
+  throw new Error(errMsg);
 }
 
 // Basic scraping endpoint
@@ -89,7 +92,9 @@ app.post('/api/scrape/basic', async (req: Request, res: Response) => {
     }
 
     // Determine engine order for fallback
-    const candidateEngines = engineOrder ? engineOrder.split(',').map((e: string) => e.trim()) : (() => {
+    const candidateEngines = engineOrder 
+      ? engineOrder.split(',').map((e: string) => e.trim()).filter((e: string) => e) 
+      : (() => {
       const e = (engine || 'auto').toString();
       if (e === 'auto') return ['python', 'html'];
       if (e === 'python') return ['python', 'html'];
@@ -103,7 +108,7 @@ app.post('/api/scrape/basic', async (req: Request, res: Response) => {
       js: async () => await scrapeWithJS(url, false)
     };
 
-    const { result: resultObj, engine: usedEngine, attempts } = await tryEngines(candidateEngines, handlers, ['html']).catch((err) => { throw err; });
+    const { result: resultObj, engine: usedEngine, attempts } = await tryEngines(candidateEngines, handlers).catch((err) => { throw err; });
     const result = { ...resultObj, _engineUsed: usedEngine, _engineAttempts: attempts };
 
     // Apply fileType filtering if requested
@@ -187,8 +192,10 @@ app.post('/api/scrape', async (req: Request, res: Response) => {
       };
 
       // Allow engineOrder override
-      const engines = engineOrder ? engineOrder.split(',').map((e: string) => e.trim()) : candidateEngines;
-      const { engine: used, result: resObj, attempts } = await tryEngines(engines, handlers, ['html']);
+      const engines = engineOrder 
+        ? engineOrder.split(',').map((e: string) => e.trim()).filter((e: string) => e)
+        : candidateEngines;
+      const { engine: used, result: resObj, attempts } = await tryEngines(engines, handlers);
       results.basic = { ...resObj, _engineUsed: used, _engineAttempts: attempts };
     } catch (error) {
       results.basicError = error instanceof Error ? error.message : 'Failed to scrape basic content';
@@ -243,7 +250,9 @@ app.post('/api/crawl', async (req: Request, res: Response) => {
     const pages = Math.min(Math.max(parseInt(maxPages) || 50, 5), 200);
 
     // Crawl using requested engine with fallback: python -> html
-    const candidateEngines = engineOrder ? engineOrder.split(',').map((e: string) => e.trim()) : (() => {
+    const candidateEngines = engineOrder 
+      ? engineOrder.split(',').map((e: string) => e.trim()).filter((e: string) => e)
+      : (() => {
       const e = (engine || 'auto').toString();
       if (e === 'python') return ['python', 'html'];
       if (e === 'html' || e === 'default') return ['html'];
@@ -255,7 +264,7 @@ app.post('/api/crawl', async (req: Request, res: Response) => {
       html: async () => await crawlWebsite(url, depth, pages)
     };
 
-    const { result, engine: usedEngine, attempts } = await tryEngines(candidateEngines, handlers, ['html']);
+    const { result, engine: usedEngine, attempts } = await tryEngines(candidateEngines, handlers);
     result._engineUsed = usedEngine;
     result._engineAttempts = attempts;
 
