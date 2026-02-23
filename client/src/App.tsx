@@ -32,6 +32,8 @@ function App() {
   const [error, setError] = useState<string | null>(null);
   const [includeJS, setIncludeJS] = useState(false);
   const [screenshot, setScreenshot] = useState(false);
+  const [engine, setEngine] = useState<string>('html');
+  const [fileType, setFileType] = useState<string>('default');
   const [activeResultsTab, setActiveResultsTab] = useState<'basic' | 'js'>('basic');
   
   // Crawler state
@@ -60,7 +62,9 @@ function App() {
       const response = await axios.post('/api/scrape', {
         url: url.trim(),
         includeJS,
-        screenshot: includeJS ? screenshot : false
+        screenshot: includeJS ? screenshot : false,
+        engine,
+        fileType
       });
       setResults(response.data);
     } catch (err) {
@@ -83,7 +87,9 @@ function App() {
       const response = await axios.post('/api/scrape', {
         url: quickUrl,
         includeJS,
-        screenshot: false
+        screenshot: false,
+        engine,
+        fileType
       });
       setResults(response.data);
     } catch (err) {
@@ -164,6 +170,10 @@ function App() {
                 screenshot={screenshot}
                 onIncludeJSChange={setIncludeJS}
                 onScreenshotChange={setScreenshot}
+                engine={engine}
+                onEngineChange={setEngine}
+                fileType={fileType}
+                onFileTypeChange={setFileType}
               />
             </div>
 
@@ -228,6 +238,8 @@ function App() {
                 setCrawlResults(result);
                 setCrawlLoading(false);
               }}
+              engine={engine}
+              fileType={fileType}
             />
 
             {crawlLoading && (

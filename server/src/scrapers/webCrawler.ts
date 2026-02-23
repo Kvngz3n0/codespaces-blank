@@ -2,6 +2,8 @@ import { JSDOM } from 'jsdom';
 import axios from 'axios';
 import { URL as URLClass } from 'url';
 import robotsParser from 'robots-parser';
+import { spawnSync } from 'child_process';
+import path from 'path';
 
 // Realistic browser user agents
 const USER_AGENTS = [
@@ -354,4 +356,40 @@ export async function searchWebsite(
 
   const crawler = new WebCrawler();
   return crawler.search(url, searchTerm, maxDepth, maxPages);
+}
+
+export async function crawlWithPython(url: string, maxDepth: number = 2, maxPages: number = 50): Promise<CrawlResult> {
+  try {
+    // Resolve python script relative to process working dir (server project)
+    const script = path.resolve(process.cwd(), 'src', 'scrapers', 'python_scraper.py');
+    const args = ['mode=crawl', `url=${url}`, `maxDepth=${maxDepth}`, `maxPages=${maxPages}`];
+    const res = spawnSync('python3', [script, ...args], { encoding: 'utf-8', timeout: 120000 });
+
+    if (res.error) throw res.error;
+    if (!res.stdout) throw new Error(res.stderr || 'No output from python crawler');
+
+    const out = JSON.parse(res.stdout);
+    if (out.error) throw new Error(out.error);
+
+    // Map Python structure to CrawlResult minimally
+    return {
+      startUrl: out.start || url,
+      pagesVisited: (out.results || []).length,
+      pagesCrawled: (out.results || []).map((p: any) => ({
+        url: p['url'] || url,
+        title: p['title'] || '',
+        description: p['description'] || '',
+        outgoingLinks: (p['links'] || []).map((l: any) => l['href'] || ''),
+        depth: 0,
+        statusCode: 200,
+        timestamp: new Date()
+      })),
+      totalLinks: (out.results || []).reduce((sum: number, p: any) => sum + ((p['links'] || []).length), 0),
+      errors: {},
+      duration: 0,
+      timestamp: new Date()
+    };
+  } catch (err) {
+    throw new Error(`Python crawler error: ${err instanceof Error ? err.message : String(err)}`);
+  }
 }

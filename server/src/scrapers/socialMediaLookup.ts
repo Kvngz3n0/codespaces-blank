@@ -94,6 +94,62 @@ const PLATFORMS = {
   }
 };
 
+// Adult / subscription platforms (added on user request)
+Object.assign(PLATFORMS, {
+  onlyfans: {
+    name: 'OnlyFans',
+    url: (username: string) => `https://onlyfans.com/${username}`,
+    checkUrl: (username: string) => `https://onlyfans.com/${username}`,
+    pattern: /^[a-zA-Z0-9_.-]{1,50}$/
+  },
+  privix: {
+    name: 'Privix',
+    url: (username: string) => `https://privix.com/${username}`,
+    checkUrl: (username: string) => `https://privix.com/${username}`,
+    pattern: /^[a-zA-Z0-9_.-]{1,50}$/
+  },
+  pornhub: {
+    name: 'Pornhub',
+    url: (username: string) => `https://www.pornhub.com/model/${username}`,
+    checkUrl: (username: string) => `https://www.pornhub.com/model/${username}`,
+    pattern: /^[a-zA-Z0-9_-]{1,50}$/
+  },
+  subscribeadult: {
+    name: 'SubscribeAdult',
+    url: (username: string) => `https://subscribeadult.com/${username}`,
+    checkUrl: (username: string) => `https://subscribeadult.com/${username}`,
+    pattern: /^[a-zA-Z0-9_.-]{1,50}$/
+  }
+});
+
+// Additional adult/subscription platforms and patronage sites
+Object.assign(PLATFORMS, {
+  patreon: {
+    name: 'Patreon',
+    url: (username: string) => `https://www.patreon.com/${username}`,
+    checkUrl: (username: string) => `https://www.patreon.com/${username}`,
+    pattern: /^[a-zA-Z0-9_-]{1,50}$/
+  },
+  fansly: {
+    name: 'Fansly',
+    url: (username: string) => `https://fansly.com/${username}`,
+    checkUrl: (username: string) => `https://fansly.com/${username}`,
+    pattern: /^[a-zA-Z0-9_.-]{1,50}$/
+  },
+  justforfans: {
+    name: 'JustFor.Fans',
+    url: (username: string) => `https://justfor.fans/${username}`,
+    checkUrl: (username: string) => `https://justfor.fans/${username}`,
+    pattern: /^[a-zA-Z0-9_.-]{1,50}$/
+  },
+  manyvids: {
+    name: 'ManyVids',
+    url: (username: string) => `https://www.manyvids.com/Profile/${username}`,
+    checkUrl: (username: string) => `https://www.manyvids.com/Profile/${username}`,
+    pattern: /^[a-zA-Z0-9_.-]{1,50}$/
+  }
+});
+
 async function checkProfileExists(
   platform: string,
   username: string

@@ -23,6 +23,7 @@ A full-stack web scraper with browser-like feel, mobile-friendly design, **crawl
 - 👤 **Social Media Lookup**
   - Search 12+ social media platforms
   - Find usernames across Twitter, GitHub, LinkedIn, Instagram, and more
+  - Now also includes subscription/adult platforms: OnlyFans, Patreon, Fansly, Pornhub, ManyVids, JustFor.Fans, SubscribeAdult
   
 - 🔎 **Web Search**
   - Search the web with customizable results
@@ -80,6 +81,16 @@ npm run build
 # Start production server
 npm run start:server
 ```
+
+## Python Engine (optional)
+
+This project includes an optional Python-based scraper/crawler engine. To use it install Python dependencies inside the `server` folder:
+
+```bash
+pip3 install -r server/requirements.txt
+```
+
+Then in the UI or API set `engine: "python"` to run scraping/crawling via the Python engine.
 
 ## Docker Deployment
 

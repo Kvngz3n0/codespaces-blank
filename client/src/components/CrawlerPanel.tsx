@@ -5,12 +5,15 @@ import './CrawlerPanel.css';
 interface CrawlerPanelProps {
   onCrawlStart: () => void;
   onCrawlComplete: (result: any) => void;
+  engine?: string;
+  fileType?: string;
 }
 
-function CrawlerPanel({ onCrawlStart, onCrawlComplete }: CrawlerPanelProps) {
+function CrawlerPanel({ onCrawlStart, onCrawlComplete, engine = 'html' }: CrawlerPanelProps) {
   const [crawlUrl, setCrawlUrl] = useState('');
   const [maxDepth, setMaxDepth] = useState(2);
   const [maxPages, setMaxPages] = useState(50);
+  const [fileType, setFileType] = useState<string | undefined>(undefined);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [isSearchMode, setIsSearchMode] = useState(false);
@@ -30,7 +33,9 @@ function CrawlerPanel({ onCrawlStart, onCrawlComplete }: CrawlerPanelProps) {
       const response = await axios.post('/api/crawl', {
         url: crawlUrl.trim(),
         maxDepth,
-        maxPages
+        maxPages,
+        engine,
+        fileType
       });
       onCrawlComplete(response.data);
     } catch (err) {
@@ -62,7 +67,9 @@ function CrawlerPanel({ onCrawlStart, onCrawlComplete }: CrawlerPanelProps) {
         url: crawlUrl.trim(),
         searchTerm: searchTerm.trim(),
         maxDepth,
-        maxPages
+        maxPages,
+        engine,
+        fileType
       });
       onCrawlComplete(response.data);
     } catch (err) {
@@ -147,6 +154,17 @@ function CrawlerPanel({ onCrawlStart, onCrawlComplete }: CrawlerPanelProps) {
               className="slider"
             />
             <small>Maximum pages to crawl (5-200)</small>
+          </div>
+          <div className="control-group">
+            <label>File Type</label>
+            <select value={fileType || 'default'} onChange={(e) => setFileType(e.target.value || undefined)} disabled={loading}>
+              <option value="default">Default (all)</option>
+              <option value="images">Images</option>
+              <option value="audio">Audio</option>
+              <option value="texts">Texts</option>
+              <option value="documents">Documents</option>
+            </select>
+            <small>Restrict crawl results to a file type</small>
           </div>
         </div>
 

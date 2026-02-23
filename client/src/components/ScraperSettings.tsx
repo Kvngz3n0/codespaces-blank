@@ -4,18 +4,44 @@ import './ScraperSettings.css';
 interface ScraperSettingsProps {
   includeJS: boolean;
   screenshot: boolean;
+  engine: string;
   onIncludeJSChange: (value: boolean) => void;
   onScreenshotChange: (value: boolean) => void;
+  onEngineChange?: (value: string) => void;
+  fileType?: string;
+  onFileTypeChange?: (value: string) => void;
 }
 
 function ScraperSettings({
   includeJS,
   screenshot,
   onIncludeJSChange,
-  onScreenshotChange
+  onScreenshotChange,
+  engine,
+  onEngineChange
+  , fileType, onFileTypeChange
 }: ScraperSettingsProps) {
   return (
     <div className="settings">
+      <label className="select-label">
+        <span>Engine:</span>
+        <select value={engine} onChange={(e) => onEngineChange && onEngineChange(e.target.value)}>
+          <option value="html">HTML (fast)</option>
+          <option value="js">JS (Puppeteer)</option>
+          <option value="python">Python (requests/BeautifulSoup)</option>
+        </select>
+      </label>
+
+      <label className="select-label">
+        <span>File Type:</span>
+        <select value={fileType || 'default'} onChange={(e) => onFileTypeChange && onFileTypeChange(e.target.value)}>
+          <option value="default">Default (all)</option>
+          <option value="images">Images</option>
+          <option value="audio">Audio</option>
+          <option value="texts">Texts</option>
+          <option value="documents">Documents</option>
+        </select>
+      </label>
       <label className="checkbox-label">
         <input
           type="checkbox"

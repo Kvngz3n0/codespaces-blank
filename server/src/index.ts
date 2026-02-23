@@ -2,9 +2,9 @@ import express, { Request, Response, NextFunction } from 'express';
 import cors from 'cors';
 import compression from 'compression';
 import helmet from 'helmet';
-import { scrapeBasic } from './scrapers/basicScraper.js';
+import { scrapeBasic, scrapeWithPython } from './scrapers/basicScraper.js';
 import { scrapeWithJS, closeBrowser } from './scrapers/jsScraper.js';
-import { crawlWebsite, searchWebsite } from './scrapers/webCrawler.js';
+import { crawlWebsite, searchWebsite, crawlWithPython } from './scrapers/webCrawler.js';
 import { lookupUsername, getAvailablePlatforms } from './scrapers/socialMediaLookup.js';
 import { performWebSearch } from './scrapers/webSearch.js';
 import dotenv from 'dotenv';
@@ -38,7 +38,7 @@ app.get('/api/health', (req: Request, res: Response) => {
 // Basic scraping endpoint
 app.post('/api/scrape/basic', async (req: Request, res: Response) => {
   try {
-    const { url } = req.body;
+    const { url, engine, fileType } = req.body;
 
     if (!url) {
       return res.status(400).json({ error: 'URL is required' });
@@ -51,7 +51,21 @@ app.post('/api/scrape/basic', async (req: Request, res: Response) => {
       return res.status(400).json({ error: 'Invalid URL' });
     }
 
-    const result = await scrapeBasic(url);
+    const result = engine === 'python' ? await scrapeWithPython(url) : await scrapeBasic(url);
+
+    // Apply fileType filtering if requested
+    if (fileType && fileType !== 'default') {
+      const filtered = { ...result } as any;
+      if (fileType === 'images') filtered.images = (filtered.images || []).filter((u: string) => /\.(jpg|jpeg|png|gif|webp|svg)$/i.test(u));
+      if (fileType === 'documents') filtered.links = (filtered.links || []).filter((l: any) => /\.(pdf|doc|docx|xls|xlsx|ppt|pptx)$/i.test(l.href));
+      if (fileType === 'audio') filtered.links = (filtered.links || []).filter((l: any) => /\.(mp3|wav|ogg|m4a)$/i.test(l.href));
+      if (fileType === 'texts') {
+        filtered.paragraphs = filtered.paragraphs || [];
+        filtered.links = (filtered.links || []).filter((l: any) => /\.(txt|md|csv|json)$/i.test(l.href));
+      }
+      return res.json(filtered);
+    }
+
     res.json(result);
   } catch (error) {
     console.error('Scrape error:', error);
@@ -89,7 +103,7 @@ app.post('/api/scrape/js', async (req: Request, res: Response) => {
 // Combined scraping endpoint (tries basic first, then JS)
 app.post('/api/scrape', async (req: Request, res: Response) => {
   try {
-    const { url, includeJS = false, screenshot = false } = req.body;
+    const { url, includeJS = false, screenshot = false, engine, fileType } = req.body;
 
     if (!url) {
       return res.status(400).json({ error: 'URL is required' });
@@ -104,7 +118,7 @@ app.post('/api/scrape', async (req: Request, res: Response) => {
     const results: Record<string, any> = {};
 
     try {
-      results.basic = await scrapeBasic(url);
+      results.basic = engine === 'python' ? await scrapeWithPython(url) : await scrapeBasic(url);
     } catch (error) {
       results.basicError = error instanceof Error ? error.message : 'Failed to scrape basic content';
     }
@@ -115,6 +129,18 @@ app.post('/api/scrape', async (req: Request, res: Response) => {
       } catch (error) {
         results.jsError = error instanceof Error ? error.message : 'Failed to scrape JS content';
       }
+    }
+
+    // Apply fileType filtering when returning combined results
+    if (fileType && fileType !== 'default') {
+      const filtered = { ...results } as any;
+      if (filtered.basic) {
+        if (fileType === 'images') filtered.basic.images = (filtered.basic.images || []).filter((u: string) => /\.(jpg|jpeg|png|gif|webp|svg)$/i.test(u));
+        if (fileType === 'documents') filtered.basic.links = (filtered.basic.links || []).filter((l: any) => /\.(pdf|doc|docx|xls|xlsx|ppt|pptx)$/i.test(l.href));
+        if (fileType === 'audio') filtered.basic.links = (filtered.basic.links || []).filter((l: any) => /\.(mp3|wav|ogg|m4a)$/i.test(l.href));
+        if (fileType === 'texts') filtered.basic.paragraphs = filtered.basic.paragraphs || [];
+      }
+      return res.json(filtered);
     }
 
     res.json(results);
@@ -129,7 +155,7 @@ app.post('/api/scrape', async (req: Request, res: Response) => {
 // Web Crawling endpoint
 app.post('/api/crawl', async (req: Request, res: Response) => {
   try {
-    const { url, maxDepth = 2, maxPages = 50 } = req.body;
+    const { url, maxDepth = 2, maxPages = 50, engine, fileType } = req.body;
 
     if (!url) {
       return res.status(400).json({ error: 'URL is required' });
@@ -145,7 +171,21 @@ app.post('/api/crawl', async (req: Request, res: Response) => {
     const depth = Math.min(Math.max(parseInt(maxDepth) || 2, 1), 5);
     const pages = Math.min(Math.max(parseInt(maxPages) || 50, 5), 200);
 
-    const result = await crawlWebsite(url, depth, pages);
+    const result = engine === 'python' ? await crawlWithPython(url, depth, pages) : await crawlWebsite(url, depth, pages);
+
+    // Apply fileType filtering for crawler results if requested
+    if (fileType && fileType !== 'default') {
+      const filtered = { ...result } as any;
+      filtered.pagesCrawled = (filtered.pagesCrawled || []).map((p: any) => {
+        const copy = { ...p };
+        if (fileType === 'images') copy.outgoingLinks = (copy.outgoingLinks || []).filter((u: string) => /\.(jpg|jpeg|png|gif|webp|svg)$/i.test(u));
+        if (fileType === 'audio') copy.outgoingLinks = (copy.outgoingLinks || []).filter((u: string) => /\.(mp3|wav|ogg|m4a)$/i.test(u));
+        if (fileType === 'documents') copy.outgoingLinks = (copy.outgoingLinks || []).filter((u: string) => /\.(pdf|doc|docx|xls|xlsx|ppt|pptx)$/i.test(u));
+        if (fileType === 'texts') copy.paragraphs = copy.paragraphs || [];
+        return copy;
+      });
+      return res.json(filtered);
+    }
     res.json(result);
   } catch (error) {
     console.error('Crawl error:', error);

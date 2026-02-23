@@ -1,3 +1,25 @@
+## 🎯 Features Highlights
+
+### Crawler Features
+✅ **Cross-domain crawling** (any domain, any site type)
+✅ Respects robots.txt (ethical crawling)
+✅ Configurable crawl depth and limits
+✅ Rate limiting (500ms between requests)
+✅ URL normalization (removes hashes)
+✅ Complete site mapping
+✅ Error tracking and reporting
+✅ Detailed page information (title, status, links)
+
+## ⚙️ Additional Features
+
+- **Python Engine (optional):** An alternative scraping/crawling engine implemented in Python (`requests` + `BeautifulSoup`) is available. Enable it by passing `engine: "python"` in API requests or selecting `Python` in the UI. Install Python dependencies with:
+
+```bash
+pip3 install -r server/requirements.txt
+```
+
+- **File-type filtering:** Both scraper and crawler accept a `fileType` parameter with values `default`, `images`, `audio`, `texts`, or `documents`. When set, returned results will be filtered to match the requested asset type (e.g., only image links or only document links).
+
 # 🚀 Advanced Web Research Toolkit - Complete Update!
 
 ## ✨ What's New

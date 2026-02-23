@@ -235,6 +235,10 @@ Tab Navigation:
 🧠 CRAWLER FEATURES (ENHANCED):
 
 ✅ Cross-domain crawling (ANY domain, no restrictions)
+
+ADDITIONAL NOTES:
+- Python engine: optional Python-based scraper/crawler available at `server/src/scrapers/python_scraper.py`. Install dependencies with `pip3 install -r server/requirements.txt` if you want to use `engine: 'python'` in API calls.
+- File-type filtering: endpoints accept `fileType` parameter (default/images/audio/texts/documents) to restrict returned assets.
 ✅ Works with adult sites and restricted content
 ✅ robots.txt respect (ethical crawling still default)
 ✅ URL normalization

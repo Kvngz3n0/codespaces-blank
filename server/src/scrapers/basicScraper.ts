@@ -1,5 +1,7 @@
 import { JSDOM } from 'jsdom';
 import axios from 'axios';
+import { spawnSync } from 'child_process';
+import path from 'path';
 
 export interface ScrapedElement {
   tag: string;
@@ -101,6 +103,43 @@ export async function scrapeBasic(url: string): Promise<BasicScrapResult> {
   }
 
   throw new Error(`Failed to scrape after ${maxRetries} attempts: ${lastError?.message || 'Unknown error'}`);
+}
+
+export async function scrapeWithPython(url: string): Promise<BasicScrapResult> {
+  try {
+    // Resolve python script relative to process working dir (server project)
+    const script = path.resolve(process.cwd(), 'src', 'scrapers', 'python_scraper.py');
+    const args = ['mode=scrape', `url=${url}`];
+    const res = spawnSync('python3', [script, ...args], { encoding: 'utf-8', timeout: 30000 });
+
+    if (res.error) {
+      throw res.error;
+    }
+
+    if (res.status !== 0 && !res.stdout) {
+      throw new Error(`Python scraper failed: ${res.stderr || 'no output'}`);
+    }
+
+    const out = JSON.parse(res.stdout || '{}');
+    if (out.error) {
+      throw new Error(out.error);
+    }
+
+    // Map Python result fields to BasicScrapResult
+    return {
+      url: out['url'] ? out['url'] : url,
+      title: out['title'] || 'No title',
+      description: out['description'] || '',
+      headings: out['headings'] || [],
+      links: (out['links'] || []).map((l: any) => ({ text: l.text || '', href: l.href || '' })),
+      images: out['images'] || [],
+      paragraphs: out['paragraphs'] || [],
+      elements: [],
+      timestamp: new Date()
+    } as BasicScrapResult;
+  } catch (err) {
+    throw new Error(`Python scraper error: ${err instanceof Error ? err.message : String(err)}`);
+  }
 }
 
 function parseContent(url: string, data: string): BasicScrapResult {

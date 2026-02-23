@@ -42,5 +42,13 @@ echo ""
 echo "Press Ctrl+C to stop"
 echo ""
 
+# If Python engine dependencies are missing, remind the user
+if [ -f "server/requirements.txt" ]; then
+    echo "Note: Python-based engine available. To enable run:"
+    echo "  pip3 install -r server/requirements.txt"
+    echo "Then select 'Python' engine in the UI or set engine:'python' in API calls."
+    echo ""
+fi
+
 npm run dev
 
