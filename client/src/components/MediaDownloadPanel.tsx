@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 
 interface MediaExtraction {
   images: string[];
@@ -50,6 +50,8 @@ const MediaDownloadPanel: React.FC<MediaDownloadPanelProps> = ({ media, title = 
     setSelected(newSelected);
   };
 
+  const checkboxRefs = useRef<{ [key: string]: HTMLInputElement | null }>({});
+
   const toggleAll = (mediaType: string) => {
     const items = (media as any)[mediaType] || [];
     const newSelected = { ...selected };
@@ -59,10 +61,21 @@ const MediaDownloadPanel: React.FC<MediaDownloadPanelProps> = ({ media, title = 
     if (set.size === items.length) {
       set.clear();
     } else {
-      items.forEach((_, idx: number) => set.add(idx));
+      items.forEach((_item: string, idx: number) => set.add(idx));
     }
     setSelected(newSelected);
   };
+
+  useEffect(() => {
+    mediaTypes.forEach(({ key }) => {
+      const checkbox = checkboxRefs.current[key];
+      if (checkbox) {
+        const items = (media as any)[key] || [];
+        const selectedCount = selected[key]?.size || 0;
+        checkbox.indeterminate = selectedCount > 0 && selectedCount < items.length;
+      }
+    });
+  }, [selected]);
 
   const downloadSelected = () => {
     const toDownload: string[] = [];
@@ -102,7 +115,7 @@ const MediaDownloadPanel: React.FC<MediaDownloadPanelProps> = ({ media, title = 
     const allSelected: { [key: string]: Set<number> } = {};
     mediaTypes.forEach(({ key }) => {
       const items = (media as any)[key] || [];
-      allSelected[key] = new Set(items.map((_, i) => i));
+      allSelected[key] = new Set(items.map((_: string, i: number) => i));
     });
     setSelected(allSelected);
     
@@ -149,9 +162,11 @@ const MediaDownloadPanel: React.FC<MediaDownloadPanelProps> = ({ media, title = 
             <div key={key} className="media-section">
               <div className="section-header">
                 <input
+                  ref={(el) => {
+                    if (el) checkboxRefs.current[key] = el;
+                  }}
                   type="checkbox"
                   checked={selectedCount === items.length && items.length > 0}
-                  indeterminate={selectedCount > 0 && selectedCount < items.length}
                   onChange={() => toggleAll(key)}
                   className="select-checkbox"
                 />
